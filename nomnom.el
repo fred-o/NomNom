@@ -1,7 +1,7 @@
 
 (setq *nom/tokens*
       (concat
-       "\\(\\(class\\|enum\\|interface\\)\s+[^\s<]+" ;; class/enum/interface def
+       "\\(\\(class\\|enum\\|interface\\)\s+[^{}\s<]+" ;; class/enum/interface def
        "\\|\\(for\\|while\\)"
        "\\|\\(new\\)?\s[^\s\.]+?(.*?)[^(;{]*{" ;; method def/anonymous class creation
        "\\|\{" ;; start curly
@@ -24,18 +24,20 @@
 						  (list (substring s start)
 							(+ idx start) (+ idx (length s))))))))
 
+(defun nom/tokenize-string (s)
+  "Split the string S into tokens."
+       (remove-if-not #'identity 
+		      (loop for start = 0 then end
+			    for pos = (string-match *nom/tokens* s start)
+			    while pos
+			    for end = (match-end 0)
+			    append (nom/split-tokens (match-string 0 s) (match-beginning 0)))))
+  
 (defun nom/tokenize-buffer ()
-  (save-excursion
-    (let ((*nom/doc* 
-	   (let ((s (buffer-string)))
-	     (set-text-properties 0 (length s) nil s)
-	     s)))
-      (remove-if-not #'identity 
-		     (loop for start = 0 then end
-			   for pos = (string-match *nom/tokens* *nom/doc* start)
-			   while pos
-			   for end = (match-end 0)
-			   append (nom/split-tokens (match-string 0 *nom/doc*) (match-beginning 0)))))))
+  "Tokenize the current java buffer."
+  (let ((s (buffer-string)))
+    (set-text-properties 0 (length s) nil s)
+    (nom/tokenize-string s)))
 
 (defun nom/expect-token (token tokens)
   (cond ((null tokens) nil)
@@ -49,14 +51,22 @@
 	((string-equal "}" (caar tokens)) tokens)
 	(t (nom/expect-curly-close (rest tokens)))))
 
-(defun nom/parse-java-class (tokens)
-  (let ((cls (nom/expect-token "class" tokens)))
-    (when cls
-      (let* ((c1 (nom/expect-token "{" cls))
-	     (c2 (nom/expect-curly-close (rest c1))))
-	(print c2)
-	(list 'class (caadr cls)
-	      (cadar c1) (caddar c2))))))
+(defun nom/expect-class-equivalent (tokens)
+  (cond ((null tokens) nil)
+	((or (string-equal "class" (caar tokens))
+	     (string-equal "interface" (caar tokens))
+	     (string-equal "enum" (caar tokens)))
+	 (let* ((c1 (nom/expect-token "{" tokens))
+		(c2 (nom/expect-curly-close (rest c1))))
+	   (cons
+	    (list 'class (caadr tokens)
+		  (cadar c1) (caddar c2))
+	    (nom/expect-class-equivalent (rest c2)))))
+	(t (nom/expect-class-equivalent (rest tokens)))))
+
+(defun nom/parse-buffer ()
+  "Parse the current java buffer."
+  (nom/expect-class-equivalent (nom/tokenize-buffer)))
 
 ;; (defun count-braces (tokens)
 ;;   (format "open: %d, closed: %d" 
