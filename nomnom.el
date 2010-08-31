@@ -1,3 +1,12 @@
+;;
+;; nomnom.el
+;;
+;; A bare-bones parser for java source files.
+;;
+;; Author: fredrik.appelberg@gmail.com
+;; Licence: Public Domain
+;; Version: 0.1
+;;
 
 (setq *nom/tokens*
       (concat
