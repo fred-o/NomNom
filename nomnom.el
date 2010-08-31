@@ -1,7 +1,9 @@
 
 (setq *nom/tokens*
       (concat
-       "\\(\\(class\\|enum\\|interface\\)\s+[^{}\s<]+" ;; class/enum/interface def
+       "//.*$" ;; single-line comment
+       "\\|/\\*[^]]*\\*/" ;; multiline comment
+       "\\|\\(\\(class\\|enum\\|interface\\)\s+[^{}\s<]+" ;; class/enum/interface def
        "\\|\\(for\\|while\\)"
        "\\|\\(new\\)?\s[^\s\.]+?(.*?)[^(;{]*{" ;; method def/anonymous class creation
        "\\|\{" ;; start curly
@@ -30,8 +32,11 @@
 		 (loop for start = 0 then end
 		       for pos = (string-match *nom/tokens* s start)
 		       while pos
+		       for beg = (match-beginning 0)
 		       for end = (match-end 0)
-		       append (nom/split-tokens (match-string 0 s) (match-beginning 0)))))
+		       for m = (match-string 0 s)
+		       unless (string-match "^\\(//\\|/\\*\\)" m)
+		       append (nom/split-tokens m beg))))
 
 (defun nom/tokenize-buffer ()
   "Tokenize the current java buffer."
