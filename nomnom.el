@@ -1,11 +1,16 @@
 ;;
 ;; nomnom.el
 ;;
-;; A bare-bones parser for java source files.
+;; A bare-bones parser for picking apart Java source files and
+;; analyzing the structure of class, interface and enum definitions.
+;;
+;; The most interesting functions are at the bottom: NOM/PARSE-BUFFER
+;; and NOM/CLASS-AT-POINT.
 ;;
 ;; Author: fredrik.appelberg@gmail.com
 ;; Licence: Public Domain
 ;; Version: 0.1
+;; Updated: 2010-09-01
 ;;
 
 (setq *nom/tokens*
@@ -102,5 +107,22 @@
 	    (rest nxt)))))
 
 (defun nom/parse-buffer ()
-  "Parse the current java buffer."
+  "Parses the current Java buffer and returns a parse tree
+containing an outline of its class, interface and enum
+definitions."
   (car (nom/expect-class-equivalents (nom/tokenize-buffer))))
+
+(defun nom/class-at-char (tree pos)
+  "Returns a hierarchical list of the class definitions
+surrounding the character POS in the given parse TREE."
+  (when tree
+    (let ((cls (first tree)))
+      (if (and (>= pos (car (third cls))) (< pos (cadr (third cls))))
+	  (cons (second cls)
+		(nom/class-at-char (fourth cls) pos))
+	  (nom/class-at-char (rest tree) pos)))))
+      
+(defun nom/class-at-point ()
+  "Returns a hierarchical list of the class definitions
+surrounding (point)."
+  (nom/class-at-char (nom/parse-buffer) (1- (point))))
