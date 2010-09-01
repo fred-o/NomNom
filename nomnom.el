@@ -53,11 +53,6 @@
     (set-text-properties 0 (length s) nil s)
     (nom/tokenize-string s)))
 
-(defun nom/expect-token (token tokens)
-  (cond ((null tokens) nil)
-	((string-equal token (caar tokens)) tokens)
-	(t (nom/expect-token token (rest tokens)))))
-
 (defun nom/expect-curly-open (tokens)
   (cond ((null tokens) nil)
 	((string-equal "}" (caar tokens)) nil)
@@ -73,10 +68,15 @@
 
 (defun nom/expect-class-body (tokens)
   (let* ((co (nom/expect-curly-open tokens))
-	 (cc (nom/expect-curly-close (rest co))))
+	 (cls (nom/expect-class-equivalents (rest co)))
+	 (cc (nom/expect-curly-close (or (rest cls)
+					 (rest co)))))
     (when cc
       (cons
-       (list (cadar co) (caddar cc))
+       (remove-if-not #'identity
+		      (list
+		       (list (cadar co) (caddar cc))
+		       (car cls)))
        (rest cc)))))
 
 (defun nom/expect-class-equivalent (tokens)
@@ -86,18 +86,20 @@
 	     (string-equal "enum" (caar tokens)))
 	 (let ((cb (nom/expect-class-body (rest tokens))))
 	   (cons
-	    (list (intern (caar tokens)) (caadr tokens)
-		  (car cb))
+	    (append 
+	     (list (intern (caar tokens)) (caadr tokens))
+	     (car cb))
 	    (rest cb))))))
 
 (defun nom/expect-class-equivalents (tokens)
   (when tokens
     (let* ((cls (nom/expect-class-equivalent tokens))
 	   (nxt (nom/expect-class-equivalents (rest cls))))
-      (cons (cons (car cls)
-		  (car nxt))
+      (cons (when cls
+	      (cons (car cls)
+		    (car nxt)))
 	    (rest nxt)))))
 
 (defun nom/parse-buffer ()
   "Parse the current java buffer."
-  (nom/expect-class-equivalents (nom/tokenize-buffer)))
+  (car (nom/expect-class-equivalents (nom/tokenize-buffer))))
