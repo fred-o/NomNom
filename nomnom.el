@@ -89,7 +89,8 @@
 	    (append 
 	     (list (intern (caar tokens)) (caadr tokens))
 	     (car cb))
-	    (rest cb))))))
+	    (rest cb))))
+	(t (nom/expect-class-equivalent (rest tokens)))))
 
 (defun nom/expect-class-equivalents (tokens)
   (when tokens
