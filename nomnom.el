@@ -112,6 +112,15 @@ containing an outline of its class, interface and enum
 definitions."
   (car (nom/expect-class-equivalents (nom/tokenize-buffer))))
 
+(defun nom/parse-file (file-name)
+  "Parses the contents of file FILE-NAME and returns a parse
+tree containing an outline of its class, interface and enum
+definitions."
+    (with-temp-buffer
+      (insert-file file-name)
+      (nom/parse-buffer)))
+
+
 (defun nom/class-at-char (tree pos)
   "Returns a hierarchical list of the class definitions
 surrounding the character POS in the given parse TREE."
@@ -126,3 +135,5 @@ surrounding the character POS in the given parse TREE."
   "Returns a hierarchical list of the class definitions
 surrounding (point)."
   (nom/class-at-char (nom/parse-buffer) (1- (point))))
+
+(provide 'nomnom)
