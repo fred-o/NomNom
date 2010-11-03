@@ -29,7 +29,7 @@
   (remove-if (lambda (token) (or (= 0 (length (car token)))
 				 (string-match "[\s,]" (car token))))
 	     (loop for start = 0 then (1+ pos)
-		   for pos = (string-match "\\([()<>\s,]\\)" s start)
+		   for pos = (string-match "\\([()<>\s\n,]\\)" s start)
 		   while pos
 		   append (list 
 			   (list (substring s start pos) 
