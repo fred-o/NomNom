@@ -9,7 +9,7 @@
 ;;
 ;; Author: fredrik.appelberg@gmail.com
 ;; Licence: Public Domain
-;; Version: 0.1
+;; Version: 0.2
 ;; Updated: 2010-09-01
 ;;
 
@@ -110,20 +110,38 @@
 		 (nom/skip-bracket-pair (cddr tokens)))))
 	(t (cons nil tokens))))
 
+(defun nom/expect-interface (tokens)
+  (cond ((string-equal "{" (caar tokens)) (cons nil tokens))
+	(t (cons (caar tokens)
+		 (nom/expect-bracket-pair (cdr tokens))))))
+
+(defun nom/expect-implements (tokens)
+  (cond ((null tokens) nil)
+	((string-equal "implements" (caar tokens))
+	 (loop for tok = (cdr tokens) then (cdr iface)
+	       for iface = (nom/expect-interface tok)
+	       while (car iface)
+	       collect (car iface) into ifaces
+	       finally return (cons ifaces tok)))
+	(t (cons nil tokens))))
+
 (defun nom/expect-class-equivalent (tokens)
   (cond ((null tokens) nil)
 	((or (string-equal "class" (caar tokens))
 	     (string-equal "interface" (caar tokens))
 	     (string-equal "enum" (caar tokens)))
-	 (let* ((im (nom/expect-extends 
+	 (let* ((ex (nom/expect-extends 
 		     (nom/skip-bracket-pair (cddr tokens))))
+		(im (nom/expect-implements (rest ex)))
 		(cb (nom/expect-class-body (rest im))))
 	   (cons
-	    (list 
-	     (intern (concat ":" (caar tokens))) (caadr tokens)
-	     (cons :bounds (caar cb))
-	     (when (car im) (list :extends (caar im)))
-	     (when (cdar cb) (list :inner (cadar cb))))
+	    (remove-if-not #'identity
+			   (list 
+			    (intern (concat ":" (caar tokens))) (caadr tokens)
+			    (cons :bounds (caar cb))
+			    (when (car ex) (list :extends (caar ex)))
+			    (when (car im) (cons :implements (car im)))
+			    (when (cdar cb) (list :inner (cadar cb)))))
 	    (rest cb))))
 	(t (nom/expect-class-equivalent (rest tokens)))))
 
@@ -146,9 +164,9 @@ definitions."
   "Parses the contents of file FILE-NAME and returns a parse
 tree containing an outline of its class, interface and enum
 definitions."
-    (with-temp-buffer
-      (insert-file file-name)
-      (nom/parse-buffer)))
+  (with-temp-buffer
+    (insert-file file-name)
+    (nom/parse-buffer)))
 
 
 (defun nom/class-at-char (tree pos)
@@ -159,8 +177,8 @@ surrounding the character POS in the given parse TREE."
       (if (and (>= pos (car (third cls))) (< pos (cadr (third cls))))
 	  (cons (second cls)
 		(nom/class-at-char (fourth cls) pos))
-	  (nom/class-at-char (rest tree) pos)))))
-      
+	(nom/class-at-char (rest tree) pos)))))
+
 (defun nom/class-at-point ()
   "Returns a hierarchical list of the class definitions
 surrounding (point)."
