@@ -16,8 +16,9 @@
 (setq *nom/tokens*
       (concat
        "//.*$" ;; single-line comment
-       "\\|/\\*[^]]*\\*/" ;; multiline comment
-       "\\|\\(\\(class\\|enum\\|interface\\)\s+[^{}\s<]+" ;; class/enum/interface def
+       "\\|/\\*[^]]*?\\*/" ;; multiline comment
+       "\\|\"\\([^\"]\\|\\\"\\)*?\"" ;; strings (that may contain escaped "'s)
+       "\\|\\(\\(class\\|enum\\|interface\\)\s+[^{}]+" ;; class/enum/interface def    
        "\\|\\(for\\|while\\)"
        "\\|\\(new\\)?\s[^\s\.]+?(.*?)[^(;{]*{" ;; method def/anonymous class creation
        "\\|\{" ;; start curly
@@ -28,7 +29,7 @@
   (remove-if (lambda (token) (or (= 0 (length (car token)))
 				 (string-match "[\s,]" (car token))))
 	     (loop for start = 0 then (1+ pos)
-		   for pos = (string-match "\\([()\s,]\\)" s start)
+		   for pos = (string-match "\\([()<>\s,]\\)" s start)
 		   while pos
 		   append (list 
 			   (list (substring s start pos) 
@@ -58,18 +59,35 @@
     (set-text-properties 0 (length s) nil s)
     (nom/tokenize-string s)))
 
-(defun nom/expect-curly-open (tokens)
+(defun nom/expect-pair-open (tokens open closed)
   (cond ((null tokens) nil)
-	((string-equal "}" (caar tokens)) nil)
-	((string-equal "{" (caar tokens)) tokens)
-	(t (nom/expect-curly-open (rest tokens)))))
+	((string-equal closed (caar tokens)) nil)
+	((string-equal open (caar tokens)) tokens)
+	(t (nom/expect-pair-open (rest tokens) open closed))))
+
+(defun nom/expect-pair-close (tokens open closed)
+  (cond ((null tokens) nil)
+	((string-equal open (caar tokens)) 
+	 (nom/expect-pair-close (rest (nom/expect-pair-close (rest tokens) open closed)) open closed))
+	((string-equal closed (caar tokens)) tokens)
+	(t (nom/expect-pair-close (rest tokens) open closed))))
+
+(defun nom/expect-curly-open (tokens)
+  (nom/expect-pair-open tokens "{" "}"))
 
 (defun nom/expect-curly-close (tokens)
-  (cond ((null tokens) nil)
-	((string-equal "{" (caar tokens)) 
-	 (nom/expect-curly-close (rest (nom/expect-curly-close (rest tokens)))))
-	((string-equal "}" (caar tokens)) tokens)
-	(t (nom/expect-curly-close (rest tokens)))))
+  (nom/expect-pair-close tokens "{" "}"))
+
+(defun nom/expect-bracket-open (tokens)
+  (nom/expect-pair-open tokens "<" ">"))
+
+(defun nom/expect-bracket-close (tokens)
+  (nom/expect-pair-close tokens "<" ">"))
+
+(defun nom/skip-bracket-pair (tokens)
+  (if (string-equal "<" (caar tokens))
+      (rest (nom/expect-bracket-close (rest tokens)))
+    tokens))
 
 (defun nom/expect-class-body (tokens)
   (let* ((co (nom/expect-curly-open tokens))
@@ -84,16 +102,28 @@
 		       (car cls)))
        (rest cc)))))
 
+(defun nom/expect-extends (tokens)
+  (cond ((null tokens) nil)
+	((string-equal "extends" (caar tokens))
+	 (let ((cls (cadr tokens)))
+	   (cons cls
+		 (nom/skip-bracket-pair (cddr tokens)))))
+	(t (cons nil tokens))))
+
 (defun nom/expect-class-equivalent (tokens)
   (cond ((null tokens) nil)
 	((or (string-equal "class" (caar tokens))
 	     (string-equal "interface" (caar tokens))
 	     (string-equal "enum" (caar tokens)))
-	 (let ((cb (nom/expect-class-body (rest tokens))))
+	 (let* ((im (nom/expect-extends 
+		     (nom/skip-bracket-pair (cddr tokens))))
+		(cb (nom/expect-class-body (rest im))))
 	   (cons
-	    (append 
-	     (list (intern (caar tokens)) (caadr tokens))
-	     (car cb))
+	    (list 
+	     (intern (concat ":" (caar tokens))) (caadr tokens)
+	     (cons :bounds (caar cb))
+	     (when (car im) (list :extends (caar im)))
+	     (when (cdar cb) (list :inner (cadar cb))))
 	    (rest cb))))
 	(t (nom/expect-class-equivalent (rest tokens)))))
 
