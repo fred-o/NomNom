@@ -29,29 +29,29 @@
   (remove-if (lambda (token) (or (= 0 (length (car token)))
 				 (string-match "[,]\\|[\s\n\t]+" (car token))))
 	     (loop for start = 0 then (1+ pos)
-		   for pos = (string-match "\\([()<>,]\\|[\s\n\t]+\\)" s start)
-		   while pos
-		   append (list 
-			   (list (substring s start pos) 
-				 (+ idx start) (+ idx pos))
-			   (list (match-string 0 s)
-				 (match-beginning 0) (match-end 0))) 
-		   into tokens
-		   finally return (append tokens (list 
-						  (list (substring s start)
-							(+ idx start) (+ idx (length s))))))))
+		for pos = (string-match "\\([()<>,]\\|[\s\n\t]+\\)" s start)
+		while pos
+		append (list 
+			(list (substring s start pos) 
+			      (+ idx start) (+ idx pos))
+			(list (match-string 0 s)
+			      (match-beginning 0) (match-end 0))) 
+		into tokens
+		finally return (append tokens (list 
+					       (list (substring s start)
+						     (+ idx start) (+ idx (length s))))))))
 
 (defun nom/tokenize-string (s)
   "Split the string S into tokens."
-  (remove-if-not #'identity 
-		 (loop for start = 0 then end
-		       for pos = (string-match *nom/tokens* s start)
-		       while pos
-		       for beg = (match-beginning 0)
-		       for end = (match-end 0)
-		       for m = (match-string 0 s)
-		       unless (string-match "^\\(//\\|/\\*\\)" m)
-		       append (nom/split-tokens m beg))))
+  (remove-if #'null
+	     (loop for start = 0 then end
+		for pos = (string-match *nom/tokens* s start)
+		while pos
+		for beg = (match-beginning 0)
+		for end = (match-end 0)
+		for m = (match-string 0 s)
+		unless (string-match "^\\(//\\|/\\*\\)" m)
+		append (nom/split-tokens m beg))))
 
 (defun nom/tokenize-buffer ()
   "Tokenize the current java buffer."
@@ -85,7 +85,7 @@
 (defun nom/skip-bracket-pair (tokens)
   (if (string-equal "<" (caar tokens))
       (rest (nom/expect-bracket-close (rest tokens)))
-    tokens))
+      tokens))
 
 (defun nom/expect-class-body (tokens)
   (let* ((co (nom/expect-curly-open tokens))
@@ -117,10 +117,10 @@
   (cond ((null tokens) nil)
 	((string-equal "implements" (caar tokens))
 	 (loop for tok = (cdr tokens) then (cdr iface)
-	       for iface = (nom/expect-interface tok)
-	       while (car iface)
-	       collect (car iface) into ifaces
-	       finally return (cons ifaces tok)))
+	    for iface = (nom/expect-interface tok)
+	    while (car iface)
+	    collect (car iface) into ifaces
+	    finally return (cons ifaces tok)))
 	(t (cons nil tokens))))
 
 (defun nom/expect-class-equivalent (tokens)
@@ -133,13 +133,14 @@
 		(im (nom/expect-implements (rest ex)))
 		(cb (nom/expect-class-body (rest im))))
 	   (cons
-	    (remove-if-not #'identity
-			   (list 
-			    (intern (concat ":" (caar tokens))) (caadr tokens)
-			    (cons :bounds (caar cb))
-			    (when (car ex) (list :extends (caar ex)))
-			    (when (car im) (cons :implements (car im)))
-			    (when (cdar cb) (list :inner (cadar cb)))))
+	    (remove-if #'null
+		       (list 
+			(caadr tokens)
+			(list :type (intern (concat ":" (caar tokens))))
+			(cons :bounds (caar cb))
+			(when (car ex) (list :extends (caar ex)))
+			(when (car im) (cons :implements (car im)))
+			(when (cdar cb) (list :inner (cadar cb)))))
 	    (rest cb))))
 	(t (nom/expect-class-equivalent (rest tokens)))))
 
@@ -166,16 +167,16 @@ definitions."
     (insert-file file-name)
     (nom/parse-buffer)))
 
-
 (defun nom/class-at-char (tree pos)
   "Returns a hierarchical list of the class definitions
 surrounding the character POS in the given parse TREE."
   (when tree
-    (let ((cls (first tree)))
-      (if (and (>= pos (car (third cls))) (< pos (cadr (third cls))))
-	  (cons (second cls)
-		(nom/class-at-char (fourth cls) pos))
-	(nom/class-at-char (rest tree) pos)))))
+    (let* ((cls (first tree))
+	   (bounds (cdr (assoc :bounds cls))))
+      (if (and (>= pos (first bounds)) (< pos (second bounds)))
+	  (cons (first cls)
+		(nom/class-at-char (second (assoc :inner cls)) pos))
+	  (nom/class-at-char (rest tree) pos)))))
 
 (defun nom/class-at-point ()
   "Returns a hierarchical list of the class definitions
