@@ -27,9 +27,9 @@
 (defun nom/split-tokens (s idx)
   "Split composite tokens into subtokens and calculate correct position for each."
   (remove-if (lambda (token) (or (= 0 (length (car token)))
-				 (string-match "[\s,]" (car token))))
+				 (string-match "[,]\\|[\s\n\t]+" (car token))))
 	     (loop for start = 0 then (1+ pos)
-		   for pos = (string-match "\\([()<>\s\n,]\\)" s start)
+		   for pos = (string-match "\\([()<>,]\\|[\s\n\t]+\\)" s start)
 		   while pos
 		   append (list 
 			   (list (substring s start pos) 
