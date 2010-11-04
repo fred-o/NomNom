@@ -4,8 +4,8 @@
 ;; A bare-bones parser for picking apart Java source files and
 ;; analyzing the structure of class, interface and enum definitions.
 ;;
-;; The most interesting functions are at the bottom: NOM/PARSE-BUFFER
-;; and NOM/CLASS-AT-POINT.
+;; The most interesting functions are at the bottom: NOM/PARSE-BUFFER,
+;; NOM/PARSE-FILE and NOM/CLASS-AT-POINT.
 ;;
 ;; Author: fredrik.appelberg@gmail.com
 ;; Licence: Public Domain
@@ -55,9 +55,7 @@
 
 (defun nom/tokenize-buffer ()
   "Tokenize the current java buffer."
-  (let ((s (buffer-string)))
-    (set-text-properties 0 (length s) nil s)
-    (nom/tokenize-string s)))
+  (nom/tokenize-string (buffer-substring-no-properties 1 (buffer-size))))
 
 (defun nom/expect-pair-open (tokens open closed)
   (cond ((null tokens) nil)
@@ -113,7 +111,7 @@
 (defun nom/expect-interface (tokens)
   (cond ((string-equal "{" (caar tokens)) (cons nil tokens))
 	(t (cons (caar tokens)
-		 (nom/expect-bracket-pair (cdr tokens))))))
+		 (nom/skip-bracket-pair (cdr tokens))))))
 
 (defun nom/expect-implements (tokens)
   (cond ((null tokens) nil)
