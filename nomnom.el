@@ -27,31 +27,31 @@
 (defun nom/split-tokens (s idx)
   "Split composite tokens into subtokens and calculate correct position for each."
   (remove-if (lambda (token) (or (= 0 (length (car token)))
-				 (string-match "[,]\\|[\s\n\t]+" (car token))))
-	     (loop for start = 0 then (1+ pos)
-		for pos = (string-match "\\([()<>,]\\|[\s\n\t]+\\)" s start)
-		while pos
-		append (list 
-			(list (substring s start pos) 
-			      (+ idx start) (+ idx pos))
-			(list (match-string 0 s)
-			      (match-beginning 0) (match-end 0))) 
-		into tokens
-		finally return (append tokens (list 
-					       (list (substring s start)
-						     (+ idx start) (+ idx (length s))))))))
+                                 (string-match "[,]\\|[\s\n\t]+" (car token))))
+             (loop for start = 0 then (1+ pos)
+                   for pos = (string-match "\\([()<>,]\\|[\s\n\t]+\\)" s start)
+                   while pos
+                   append (list 
+                           (list (substring s start pos) 
+                                 (+ idx start) (+ idx pos))
+                           (list (match-string 0 s)
+                                 (match-beginning 0) (match-end 0))) 
+                   into tokens
+                   finally return (append tokens (list 
+                                                  (list (substring s start)
+                                                        (+ idx start) (+ idx (length s))))))))
 
 (defun nom/tokenize-string (s)
   "Split the string S into tokens."
   (remove-if #'null
-	     (loop for start = 0 then end
-		for pos = (string-match *nom/tokens* s start)
-		while pos
-		for beg = (match-beginning 0)
-		for end = (match-end 0)
-		for m = (match-string 0 s)
-		unless (string-match "^\\(//\\|/\\*\\)" m)
-		append (nom/split-tokens m beg))))
+             (loop for start = 0 then end
+                   for pos = (string-match *nom/tokens* s start)
+                   while pos
+                   for beg = (match-beginning 0)
+                   for end = (match-end 0)
+                   for m = (match-string 0 s)
+                   unless (string-match "^\\(//\\|/\\*\\)" m)
+                   append (nom/split-tokens m beg))))
 
 (defun nom/tokenize-buffer ()
   "Tokenize the current java buffer."
@@ -59,16 +59,16 @@
 
 (defun nom/expect-pair-open (tokens open closed)
   (cond ((null tokens) nil)
-	((string-equal closed (caar tokens)) nil)
-	((string-equal open (caar tokens)) tokens)
-	(t (nom/expect-pair-open (rest tokens) open closed))))
+        ((string-equal closed (caar tokens)) nil)
+        ((string-equal open (caar tokens)) tokens)
+        (t (nom/expect-pair-open (rest tokens) open closed))))
 
 (defun nom/expect-pair-close (tokens open closed)
   (cond ((null tokens) nil)
-	((string-equal open (caar tokens)) 
-	 (nom/expect-pair-close (rest (nom/expect-pair-close (rest tokens) open closed)) open closed))
-	((string-equal closed (caar tokens)) tokens)
-	(t (nom/expect-pair-close (rest tokens) open closed))))
+        ((string-equal open (caar tokens)) 
+         (nom/expect-pair-close (rest (nom/expect-pair-close (rest tokens) open closed)) open closed))
+        ((string-equal closed (caar tokens)) tokens)
+        (t (nom/expect-pair-close (rest tokens) open closed))))
 
 (defun nom/expect-curly-open (tokens)
   (nom/expect-pair-open tokens "{" "}"))
@@ -85,73 +85,73 @@
 (defun nom/skip-bracket-pair (tokens)
   (if (string-equal "<" (caar tokens))
       (rest (nom/expect-bracket-close (rest tokens)))
-      tokens))
+    tokens))
 
 (defun nom/expect-class-body (tokens)
   (let* ((co (nom/expect-curly-open tokens))
-	 (cls (nom/expect-class-equivalents (rest co)))
-	 (cc (nom/expect-curly-close (or (rest cls)
-					 (rest co)))))
+         (cls (nom/expect-class-equivalents (rest co)))
+         (cc (nom/expect-curly-close (or (rest cls)
+                                         (rest co)))))
     (when cc
       (cons
        (remove-if-not #'identity
-		      (list
-		       (list (cadar co) (caddar cc))
-		       (car cls)))
+                      (list
+                       (list (cadar co) (caddar cc))
+                       (car cls)))
        (rest cc)))))
 
 (defun nom/expect-extends (tokens)
   (cond ((null tokens) nil)
-	((string-equal "extends" (caar tokens))
-	 (let ((cls (cadr tokens)))
-	   (cons cls
-		 (nom/skip-bracket-pair (cddr tokens)))))
-	(t (cons nil tokens))))
+        ((string-equal "extends" (caar tokens))
+         (let ((cls (cadr tokens)))
+           (cons cls
+                 (nom/skip-bracket-pair (cddr tokens)))))
+        (t (cons nil tokens))))
 
 (defun nom/expect-interface (tokens)
   (cond ((string-equal "{" (caar tokens)) (cons nil tokens))
-	(t (cons (caar tokens)
-		 (nom/skip-bracket-pair (cdr tokens))))))
+        (t (cons (caar tokens)
+                 (nom/skip-bracket-pair (cdr tokens))))))
 
 (defun nom/expect-implements (tokens)
   (cond ((null tokens) nil)
-	((string-equal "implements" (caar tokens))
-	 (loop for tok = (cdr tokens) then (cdr iface)
-	    for iface = (nom/expect-interface tok)
-	    while (car iface)
-	    collect (car iface) into ifaces
-	    finally return (cons ifaces tok)))
-	(t (cons nil tokens))))
+        ((string-equal "implements" (caar tokens))
+         (loop for tok = (cdr tokens) then (cdr iface)
+               for iface = (nom/expect-interface tok)
+               while (car iface)
+               collect (car iface) into ifaces
+               finally return (cons ifaces tok)))
+        (t (cons nil tokens))))
 
 (defun nom/expect-class-equivalent (tokens)
   (cond ((null tokens) nil)
-	((or (string-equal "class" (caar tokens))
-	     (string-equal "interface" (caar tokens))
-	     (string-equal "enum" (caar tokens)))
-	 (let* ((ex (nom/expect-extends 
-		     (nom/skip-bracket-pair (cddr tokens))))
-		(im (nom/expect-implements (rest ex)))
-		(cb (nom/expect-class-body (rest im))))
-	   (cons
-	    (remove-if #'null
-		       (list 
-			(caadr tokens)
-			(list :type (intern (concat ":" (caar tokens))))
-			(cons :bounds (caar cb))
-			(when (car ex) (list :extends (caar ex)))
-			(when (car im) (cons :implements (car im)))
-			(when (cdar cb) (list :inner (cadar cb)))))
-	    (rest cb))))
-	(t (nom/expect-class-equivalent (rest tokens)))))
+        ((or (string-equal "class" (caar tokens))
+             (string-equal "interface" (caar tokens))
+             (string-equal "enum" (caar tokens)))
+         (let* ((ex (nom/expect-extends 
+                     (nom/skip-bracket-pair (cddr tokens))))
+                (im (nom/expect-implements (rest ex)))
+                (cb (nom/expect-class-body (rest im))))
+           (cons
+            (remove-if #'null
+                       (list 
+                        (caadr tokens)
+                        (list :type (intern (concat ":" (caar tokens))))
+                        (cons :bounds (caar cb))
+                        (when (car ex) (list :extends (caar ex)))
+                        (when (car im) (cons :implements (car im)))
+                        (when (cdar cb) (list :inner (cadar cb)))))
+            (rest cb))))
+        (t (nom/expect-class-equivalent (rest tokens)))))
 
 (defun nom/expect-class-equivalents (tokens)
   (when tokens
     (let* ((cls (nom/expect-class-equivalent tokens))
-	   (nxt (nom/expect-class-equivalents (rest cls))))
+           (nxt (nom/expect-class-equivalents (rest cls))))
       (cons (when cls
-	      (cons (car cls)
-		    (car nxt)))
-	    (rest nxt)))))
+              (cons (car cls)
+                    (car nxt)))
+            (rest nxt)))))
 
 (defun nom/parse-buffer ()
   "Parses the current Java buffer and returns a parse tree
@@ -172,11 +172,11 @@ definitions."
 surrounding the character POS in the given parse TREE."
   (when tree
     (let* ((cls (first tree))
-	   (bounds (cdr (assoc :bounds cls))))
+           (bounds (cdr (assoc :bounds cls))))
       (if (and (>= pos (first bounds)) (< pos (second bounds)))
-	  (cons (first cls)
-		(nom/class-at-char (second (assoc :inner cls)) pos))
-	  (nom/class-at-char (rest tree) pos)))))
+          (cons (first cls)
+                (nom/class-at-char (second (assoc :inner cls)) pos))
+        (nom/class-at-char (rest tree) pos)))))
 
 (defun nom/class-at-point ()
   "Returns a hierarchical list of the class definitions
