@@ -123,8 +123,14 @@
                finally return (cons ifaces tok)))
         (t (cons nil tokens))))
 
-(defun nom/expect-class-equivalent (tokens)
+(defun nom/expect-class-equivalent (tokens &optional level)
   (cond ((null tokens) nil)
+        ((string-equal "{" (caar tokens)) 
+         (nom/expect-class-equivalent (rest tokens) (1+ (or level 0))))
+        ((string-equal "}" (caar tokens)) 
+         (if (zerop (or level 0))
+             nil
+           (nom/expect-class-equivalent (rest tokens) (1- level))))
         ((or (string-equal "class" (caar tokens))
              (string-equal "interface" (caar tokens))
              (string-equal "enum" (caar tokens)))
@@ -142,7 +148,7 @@
                         (when (car im) (cons :implements (car im)))
                         (when (cdar cb) (list :inner (cadar cb)))))
             (rest cb))))
-        (t (nom/expect-class-equivalent (rest tokens)))))
+       (t (nom/expect-class-equivalent (rest tokens)))))
 
 (defun nom/expect-class-equivalents (tokens)
   (when tokens
