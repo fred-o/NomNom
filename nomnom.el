@@ -9,7 +9,7 @@
 ;;
 ;; Author: fredrik.appelberg@gmail.com
 ;; Licence: Public Domain
-;; Version: 0.2
+;; Version: 0.3
 ;; Updated: 2010-09-01
 ;;
 
